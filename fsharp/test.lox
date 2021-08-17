@@ -1,0 +1,6 @@
+fun main() {
+    // this is a comment, ignore it
+    print("this is a string");
+    x = 1000;
+    y = 20.55;
+}

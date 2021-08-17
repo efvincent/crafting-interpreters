@@ -1,0 +1,2 @@
+* Crafting Compilers
+Working through exercises in compiler and interpreter construction.

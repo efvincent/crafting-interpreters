@@ -4,8 +4,10 @@
     <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Lib.fs" />
     <Compile Include="Token.fs" />
     <Compile Include="Scanner.fs" />
+    <Compile Include="FScanner.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

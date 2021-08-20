@@ -1,7 +1,7 @@
 open System
 open System.IO
 open Flox.Types
-open Flox.Scanner
+open Flox.FScanner
 
 let runPrompt () =
   Ok ()
@@ -11,9 +11,10 @@ let run source =
 
 let runFile fn =
   printfn "Processing file %s" fn
-  let rec go = function
+  let rec go (tkns:Token list) =
+    match tkns with
     | (t::ts) -> 
-      printfn "Token %A" t.Type
+      printfn "Line %i %A" t.Line t.Type
       go ts
     | [] -> Ok ()
   if File.Exists fn then

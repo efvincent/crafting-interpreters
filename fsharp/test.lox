@@ -3,4 +3,9 @@ fun main() {
     print("this is a string");
     x = 1000;
     y = 20.55;
+    if (x >= 23.3 and y <= 100 and z != 23) {
+        print("things are not good");  // this is true
+    } else {
+        do_other_work(FALSE);
+    }
 }

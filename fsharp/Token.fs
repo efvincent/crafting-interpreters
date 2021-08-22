@@ -1,9 +1,4 @@
-module Flox.Types
-
-type FloxError = {
-    Line: int
-    Msg: string
-}
+module Flox.Tokens
 
 type TokenType =
       // Single-character tokens
@@ -53,9 +48,14 @@ type TokenType =
   | WHILE
   | EOF
 
-type Token = {
-  Type: TokenType
-  Lexeme : string
-  Line: int
-}
+type Token = 
+  { Type: TokenType
+    Lexeme : string
+    Line: int }
 
+type FloxError = 
+  { Line: int
+    Msg: string }  
+  static member FromToken (t:Token) msg = 
+      let s = (sprintf "[line %i] Error %s" t.Line msg)
+      { Line = t.Line; Msg = s }

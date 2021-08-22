@@ -1,6 +1,6 @@
 open System
 open System.IO
-open Flox.Types
+open Flox.Tokens
 open Flox.FScanner
 
 let runPrompt () =

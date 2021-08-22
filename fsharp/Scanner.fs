@@ -1,6 +1,6 @@
 module Flox.Scanner
 
-open Flox.Types
+open Flox.Tokens
 
 let keywords = 
   [

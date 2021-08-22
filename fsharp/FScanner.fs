@@ -1,6 +1,6 @@
 module Flox.FScanner
 
-open Flox.Types
+open Flox.Tokens
 open Flox.Lib
 
 let private keywords = 

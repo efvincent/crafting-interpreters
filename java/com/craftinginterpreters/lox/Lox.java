@@ -16,14 +16,10 @@ public class Lox {
   public static boolean hadError = false;
 
   public static void main(String[] args) throws IOException {
-    if (args.length < 1) {
-      runFile(TEST_FILE);
-      // System.out.println("Usage: jlox [script]");
-      // System.exit(64);
-    } else if (args.length == 1) {
-      runFile(args[0]);
-    } else {
+    if (args.length == 0) {
       runPrompt();
+    } else {
+      runFile(TEST_FILE);
     }
   }
 
@@ -51,10 +47,12 @@ public class Lox {
     Scanner scanner = new Scanner(source);
     List<Token> tokens = scanner.scanTokens();
 
-    // for now, just print the tokens
-    for (Token token : tokens) {
-      System.out.println(token);
-    }
+    Parser parser = new Parser(tokens);
+    Expr expression = parser.parse();
+
+    // Stop here if there was a syntax error
+    if (hadError) return;
+    System.out.println(new AstPrinter().print(expression));
   }
 
   static void error(int line, String message) {

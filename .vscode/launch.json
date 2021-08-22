@@ -5,17 +5,22 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "type": "java",
+            "name": "Launch Lox",
+            "request": "launch",
+            "mainClass": "com.craftinginterpreters.lox.Lox",
+            "projectName": "crafting-interpreters_715ca250"
+        },
+        {
             "name": "Launch",
             "type": "coreclr",
-            "request":"launch",
+            "request": "launch",
             "args": "test.lox",
-            "program":"${workspaceFolder}/fsharp/bin/Debug/net5.0/testfs.dll",
+            "program": "${workspaceFolder}/fsharp/bin/Debug/net5.0/testfs.dll",
             "preLaunchTask": "build",
             "cwd": "${workspaceFolder}/fsharp",
             "stopAtEntry": true,
             "console": "internalConsole"
         }
-
-
     ]
 }

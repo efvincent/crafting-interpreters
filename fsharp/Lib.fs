@@ -25,3 +25,6 @@ let isAlphaNumeric c =
 let uncurry f (x,y) = f x y
 
 let curry f x y = f(x,y) 
+
+let sbAppend (s:string) (sb:System.Text.StringBuilder) =
+  sb.Append(s)

@@ -58,7 +58,7 @@ and private primary tokens =
       )
     | _ -> Error ((FloxError.FromToken tkn "Expecting expression"), tkns)
 
-  | [] -> Error ({Line=0; Msg="No tokens at primary"}, [])
+  | [] -> Error ({Line=0; Msg="Unexpected end of input"}, [])
 
 let parse tokens =
   expression tokens 

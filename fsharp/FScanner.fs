@@ -107,6 +107,7 @@ let scan source =
         match c::cs with
         | [] -> Ok ss
         | ('/'::'/'::rest) -> loop {ss with Line = ss.Line + 1} (skipRemainingLine rest)
+        | ('/':: rest)     -> loop (addToken "/" SLASH ss) rest
         | ('!'::'='::rest) -> loop (addToken "!=" BANG_EQUAL ss) rest
         | ('!'::rest)      -> loop (addToken "!" BANG ss) rest
         | ('>'::'='::rest) -> loop (addToken ">=" GREATER_EQUAL ss) rest

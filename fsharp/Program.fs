@@ -7,6 +7,9 @@ open Flox.Parser
 open Flox.Expressions
 open Flox.Lib
 
+let printSplash () = 
+  printfn "FLOX Programming Language\nCopyright 2021 Eric F. Vincent\nVersion 0.21\n"
+
 let run source =
   scan source
   |> Result.bind parse
@@ -28,15 +31,15 @@ and exprToString = function
 | Binary (lhs,token,rhs) -> paren token.Lexeme [lhs;rhs]
 
 let runPrompt () =
+  printSplash () 
   let rec loop () = 
-    printf "> "
-    let input = Console.ReadLine()
-    if not (isNull input) then
+    printf "\x1b[1m\x1b[35mɸλοχ \x1b[33m>\x1b[0m "
+    match Console.ReadLine() with
+    | null | "" -> ()
+    | input ->
       match run input with
-      | Ok expr -> printfn "%s" (exprToString expr); loop ()
-      | Error e -> printfn "%s" e.Msg; loop ()
-    else
-      printfn "\nGoodbye.\n"
+      | Ok expr -> printfn "\x1b[36m%s\x1b[0m\n" (exprToString expr); loop ()
+      | Error e -> printfn "\x1b[31m%s\x1b[0m\n" e.Msg; loop ()
   Ok <| loop ()
 
 let runFile fn =

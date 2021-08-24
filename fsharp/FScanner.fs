@@ -74,7 +74,7 @@ let private scanNumber ss str =
   loop false [] str
   |> Result.map 
     (fun (str', rest) -> 
-      let newToken =  {Type=NUMBER (double str'); Lexeme=str'; Line=ss.Line}
+      let newToken =  {Type=NUMBER (float str'); Lexeme=str'; Line=ss.Line}
       let tokens = newToken :: ss.Tokens
       ({ss with Tokens = tokens},rest))
 

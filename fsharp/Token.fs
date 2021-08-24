@@ -27,7 +27,7 @@ type TokenType =
   // literals
   | IDENTIFIER of string
   | STRING of string
-  | NUMBER of double
+  | NUMBER of float
 
   // keywords
   | AND

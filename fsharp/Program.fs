@@ -25,9 +25,9 @@ let rec paren name (exprs: Expr list) =
   sb.ToString ()
 
 and exprToString = function
-| Literal ob -> if isNull ob then "nil" else (string ob)
-| Unary (token,rhs) -> paren token.Lexeme [rhs]
-| Grouping expr -> paren "group" [expr]
+| Literal ob             -> (string ob)
+| Unary (token,rhs)      -> paren token.Lexeme [rhs]
+| Grouping expr          -> paren "group" [expr]
 | Binary (lhs,token,rhs) -> paren token.Lexeme [lhs;rhs]
 
 let runPrompt () =

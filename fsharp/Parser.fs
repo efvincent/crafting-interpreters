@@ -43,11 +43,11 @@ and private primary tokens =
   match tokens with
   | (tkn::tkns) ->
     match tkn.Type with    
-    | FALSE -> (Ok (Literal false, tkns))
-    | TRUE  -> (Ok (Literal true, tkns))
-    | NIL   -> (Ok (Literal null, tkns))
-    | NUMBER n -> (Ok (Literal n, tkns))
-    | STRING s -> (Ok (Literal s, tkns))
+    | FALSE -> (Ok (Literal (Bool false), tkns))
+    | TRUE  -> (Ok (Literal (Bool true), tkns))
+    | NIL   -> (Ok (Literal Nil, tkns))
+    | NUMBER n -> (Ok (Literal (Num n), tkns))
+    | STRING s -> (Ok (Literal (Str s), tkns))
     | LEFT_PAREN ->
       expression tkns
       |> Result.bind (fun (expr,rest) -> 

@@ -6,8 +6,28 @@ module Flox.Parser
 
 open Flox.Tokens
 open Flox.Expressions
+open Flox.Statements
+open Flox.ErrorHandling
 
-let private makeRule nextRule matchTypes =
+(*
+grammar for flox
+
+program     -> statement* EOF ;
+statement   -> exprStmt | printStmt ;
+exprStmt    -> expression ";" ;
+printStmt   -> "print" expression ";" ;
+expression  -> equality ;
+equality    -> comparison ( ( "!=" | "==") comparison )* ;
+comparison  -> term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
+term        -> factor ( ( "-" | "*" ) factor )* ;
+factor      -> unary ( ( "/" | "*" ) unary )* ;
+unary       -> ( "!" | "-" ) unary | primary ;
+primary     -> NUMBER | STRING | "true" | "false" | "nil"
+            | "(" expression ")" ;
+
+*)
+
+let private makeExprRule nextRule matchTypes =
   fun tokens ->
     let rec loop result =
       result
@@ -23,10 +43,10 @@ let private makeRule nextRule matchTypes =
     |> loop
 
 let rec private expression = equality
-and private equality =   makeRule comparison [BANG_EQUAL; EQUAL_EQUAL]
-and private comparison = makeRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL] 
-and private term   =     makeRule factor     [MINUS;PLUS] 
-and private factor =     makeRule unary      [SLASH;STAR] 
+and private equality =   makeExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
+and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL] 
+and private term   =     makeExprRule factor     [MINUS;PLUS] 
+and private factor =     makeExprRule unary      [SLASH;STAR] 
 
 and private unary tokens =
   match tokens with
@@ -37,7 +57,7 @@ and private unary tokens =
       |> Result.map (fun (expr, rest) -> 
         (Unary (tkn, expr), rest))
     | _ -> primary tokens
-  | [] -> Error ({Line=0; Msg="No tokens at unary"}, [])
+  | [] -> Error ({Line=0; Msg="Unexpected end of input"}, [])
 
 and private primary tokens = 
   match tokens with
@@ -60,7 +80,30 @@ and private primary tokens =
 
   | [] -> Error ({Line=0; Msg="Unexpected end of input"}, [])
 
+let private printStatement tokens =
+  result {
+    let! (expr, rest) = expression tokens
+    match rest with
+    | (t::rest') when t.Type = SEMICOLON -> return (PrintStmt expr, rest')
+    | (t::rest') -> return! Error (FloxError.FromToken t "print statement expects ';' after value", rest')
+    | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+  }
+
+let private exprStatement tokens =
+  result {
+    let! (expr, rest) = expression tokens
+    match rest with
+    | (t::rest') when t.Type = SEMICOLON -> return (ExprStmt expr, rest')
+    | (t::rest') -> return! Error (FloxError.FromToken t "expected ';' after value", rest')
+    | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+  }
+
+let private statement tokens =
+  match tokens with
+  | (t::rest) when t.Type = PRINT -> printStatement rest
+  | _ -> exprStatement tokens
+
 let parse tokens =
-  expression tokens 
+  statement tokens 
   |> Result.mapError fst 
   |> Result.map fst

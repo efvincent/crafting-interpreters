@@ -18,7 +18,7 @@ type Expr = Binary of Expr * Token * Expr
           | Grouping of Expr
           | Literal of Value
           | Unary of Token * Expr
-          | Variable of Token
+          | Var of Token
 
 let rec private paren name (exprs: Expr list) =
   let sb = StringBuilder()
@@ -35,4 +35,4 @@ and exprToString = function
 | Unary (token,rhs)      -> paren token.Lexeme [rhs]
 | Grouping expr          -> paren "group" [expr]
 | Binary (lhs,token,rhs) -> paren token.Lexeme [lhs;rhs]
-| Variable token         -> token.Lexeme
+| Var token              -> token.Lexeme

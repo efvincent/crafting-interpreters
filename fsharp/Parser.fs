@@ -99,11 +99,19 @@ let private exprStatement tokens =
   }
 
 let private statement tokens =
-  match tokens with
-  | (t::rest) when t.Type = PRINT -> printStatement rest
-  | _ -> exprStatement tokens
+  let rec loop acc tkns =
+    result {
+      match tkns with 
+      | [] -> return acc
+      | (t::rest) when t.Type = PRINT -> 
+        let! (stmt, rest') = printStatement rest 
+        return! loop (stmt::acc) rest'    
+      | tkns -> 
+        let! (stmt, rest') = exprStatement tkns
+        return! loop (stmt::acc) rest'
+    }
+  loop [] tokens
 
 let parse tokens =
   statement tokens 
   |> Result.mapError fst 
-  |> Result.map fst

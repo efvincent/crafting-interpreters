@@ -82,12 +82,13 @@ and private primary tokens =
   match tokens with
   | (tkn::tkns) ->
     match tkn.Type with    
-    | FALSE -> (Ok (Literal (Bool false), tkns))
-    | TRUE  -> (Ok (Literal (Bool true), tkns))
-    | NIL   -> (Ok (Literal Nil, tkns))
-    | NUMBER n -> (Ok (Literal (Num n), tkns))
-    | STRING s -> (Ok (Literal (Str s), tkns))
-    | LEFT_PAREN ->
+    | FALSE        -> Ok (Literal (Bool false), tkns)
+    | TRUE         -> Ok (Literal (Bool true), tkns)
+    | NIL          -> Ok (Literal Nil, tkns)
+    | NUMBER n     -> Ok (Literal (Num n), tkns)
+    | STRING s     -> Ok (Literal (Str s), tkns)
+    | IDENTIFIER _ -> Ok ((Var tkn), tkns)
+    | LEFT_PAREN   ->
       expression tkns
       |> Result.bind (fun (expr,rest) -> 
         match rest with 
@@ -125,12 +126,34 @@ let private statement tokens =
     | tkns                          -> return! exprStatement tkns 
   }
 
-let private declaration (tokens : Token list) : Result<Stmt list, (FloxError * Token list)> =
-  Ok []
+let private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+  match tokens with
+  | (t::rest) -> 
+    match t.Type with 
+    | IDENTIFIER _ ->
+      result {
+        match rest with 
+        | (op::rest') when op.Type = EQUAL ->
+          let! (initializer,rest'') = expression rest'
+          match rest'' with
+          | (semi::afterSemi) when semi.Type = SEMICOLON -> return (VarStmt (t, Some initializer), afterSemi)
+          | _ -> return! Error (FloxError.FromToken op "expected ';' after value", rest'')
+        | _ -> return! Error({Line=0;Msg="Unexpected end of input"}, [])
+      }
+    | _ -> Error (FloxError.FromToken t "Identifier expected in variable declaration", tokens)
+  | [] -> Error ({Line=0;Msg="Assertion Failed: Unexpected end of variable declaration"}, [])
+
+let private declaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+  result {
+    match tokens with
+    | [] -> return! Error ({Line=0; Msg="Assertion Failed: Token expected in declaration parser"}, [])
+    | (t::rest) when t.Type = VAR -> return! varDeclaration rest
+    | _  -> return! statement tokens
+  }
 
 let parse tokens =
   let rec loop acc tkns =
-    match statement tokens with
+    match declaration tkns with
     | Ok (stmt, [])    -> List.rev (stmt::acc) |> Ok
     | Ok (stmt, tkns') -> loop (stmt::acc) tkns'
     | Error (e, _) ->

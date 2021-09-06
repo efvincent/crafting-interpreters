@@ -118,19 +118,22 @@ let private exprStatement tokens =
   }
 
 let private statement tokens =
-  let rec loop acc tkns =
-    result {
-      match tkns with 
-      | [] -> return acc
-      | (t::rest) when t.Type = PRINT -> 
-        let! (stmt, rest') = printStatement rest 
-        return! loop (stmt::acc) rest'    
-      | tkns -> 
-        let! (stmt, rest') = exprStatement tkns
-        return! loop (stmt::acc) rest'
-    }
-  loop [] tokens
+  result {
+    match tokens with
+    | []                            -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
+    | (t::rest) when t.Type = PRINT -> return! printStatement rest
+    | tkns                          -> return! exprStatement tkns 
+  }
+
+let private declaration (tokens : Token list) : Result<Stmt list, (FloxError * Token list)> =
+  Ok []
 
 let parse tokens =
-  statement tokens 
-  |> Result.mapError fst 
+  let rec loop acc tkns =
+    match statement tokens with
+    | Ok (stmt, [])    -> List.rev (stmt::acc) |> Ok
+    | Ok (stmt, tkns') -> loop (stmt::acc) tkns'
+    | Error (e, _) ->
+      // here's where synchronize goes - we'll toss out tokens until we get to a "reset" point - tbd
+      Error e
+  loop [] tokens

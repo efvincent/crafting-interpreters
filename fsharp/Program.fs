@@ -17,7 +17,7 @@ let runPrompt () =
   printSplash () 
   let rec loop istate = 
     printf "\x1b[1m\x1b[35mɸλοχ \x1b[33m>\x1b[0m "
-    match Console.ReadLine() with
+    match let input = Console.ReadLine() in if isNull input then "#exit" else input with
     | s when s.ToLower () = "#exit" -> ()
     | input ->      
       match run input with

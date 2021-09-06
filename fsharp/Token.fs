@@ -57,5 +57,7 @@ type FloxError =
   { Line: int
     Msg: string }  
   static member FromToken (t:Token) msg = 
-      let s = (sprintf "[line %i] Error %s" t.Line msg)
+      let s = (sprintf "[line %i] %s" t.Line msg)
       { Line = t.Line; Msg = s }
+  override this.ToString () =
+    this.Msg

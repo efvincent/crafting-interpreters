@@ -1,13 +1,10 @@
 open System
 open System.IO
-open System.Text
 open Flox.Tokens
 open Flox.FScanner
 open Flox.Parser
 open Flox.Expressions
-open Flox.Lib
 open Flox.Interpreter
-open Flox.ErrorHandling
 
 let printSplash () = 
   printfn "FLOX Programming Language\nCopyright 2021 Eric F. Vincent\nVersion 0.21\n\n type #exit or <CTRL-D> to exit\n"

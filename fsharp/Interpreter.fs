@@ -5,12 +5,15 @@ open Flox.Tokens
 open Flox.ErrorHandling
 open Flox.Expressions
 open Flox.Statements
+open Flox.Environment
 
 type InterpreterState = {
   StatementCount : int
+  Environment : Env
 } with
   static member init = {
     StatementCount = 0
+    Environment = Map.ofList []
   }
 
 let private toNum t = function
@@ -83,10 +86,10 @@ let private evalBoolOp t op l r =
     | Nil -> return Bool false
   }
 
-let rec eval = function
+let rec eval istate = function
 | Literal v -> Ok v
 | Unary (t, e) ->
-  eval e
+  eval istate e
   |> Result.bind (fun value -> 
     match (t.Type, value) with
     | (MINUS, (Num n)) -> Ok (Num (0.0 - n))  
@@ -95,8 +98,8 @@ let rec eval = function
   )
 | Binary (lhs,t,rhs) ->
   result {
-    let! lhsv = eval lhs
-    let! rhsv = eval rhs
+    let! lhsv = eval istate lhs
+    let! rhsv = eval istate rhs
     match t.Type with 
     | PLUS  -> return! evalAdd t lhsv rhsv
     | MINUS -> return! evalNumericBinary t (-) lhsv rhsv
@@ -104,25 +107,36 @@ let rec eval = function
     | SLASH -> return! evalNumericBinary t (/) lhsv rhsv
     | op    -> return! evalBoolOp t op lhsv rhsv
   }
-| Grouping expr -> eval expr
+| Grouping expr -> eval istate expr
+| Var t ->
+  match getValue istate.Environment t.Lexeme with
+  | Some v -> Ok v
+  | None -> Error (FloxError.FromToken t (sprintf "Undefined variable '%s'" t.Lexeme))
 
-let evalStmt (stmt:Stmt) (istate:InterpreterState) : Result<InterpreterState, FloxError> =
+let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =
   result {
     match stmt with
     | ExprStmt expr ->
-      let! _ = eval expr
+      let! _ = eval istate expr
       return { istate with StatementCount = istate.StatementCount + 1 }
     | PrintStmt expr ->
-      let! v = eval expr
+      let! v = eval istate expr
       printf "%s\n" (string v)
       return { istate with StatementCount = istate.StatementCount + 1 }
+    | VarStmt (t, Some e) ->
+      let! v = eval istate e
+      return { istate with 
+                StatementCount = istate.StatementCount + 1
+                Environment = defineVar istate.Environment t.Lexeme v }
+    | VarStmt (t, None) ->
+      return { istate with
+                StatementCount = istate.StatementCount + 1
+                Environment = defineVar istate.Environment t.Lexeme Nil }
   }
 
-let interpret prog =
-  let rec loop istate = function
-  | (stmt::rest) -> 
-    match evalStmt stmt istate with 
-    | Ok (newState) -> loop newState rest
-    | Error e -> Error e
-  | [] -> Ok istate
-  loop InterpreterState.init prog
+let rec interpret istate = function
+| (stmt::rest) -> 
+  match evalStmt istate stmt with 
+  | Ok (newState) -> interpret newState rest
+  | Error e -> Error (e, istate)
+| [] -> Ok istate

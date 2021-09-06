@@ -9,6 +9,7 @@
     <Compile Include="Token.fs" />
     <Compile Include="Expr.fs" />
     <Compile Include="Stmt.fs" />
+    <Compile Include="Env.fs" />
     <Compile Include="FScanner.fs" />
     <Compile Include="Parser.fs" />
     <Compile Include="Interpreter.fs" />

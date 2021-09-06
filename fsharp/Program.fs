@@ -6,6 +6,8 @@ open Flox.FScanner
 open Flox.Parser
 open Flox.Expressions
 open Flox.Lib
+open Flox.Interpreter
+open Flox.ErrorHandling
 
 let printSplash () = 
   printfn "FLOX Programming Language\nCopyright 2021 Eric F. Vincent\nVersion 0.21\n"
@@ -14,21 +16,10 @@ let run source =
   scan source
   |> Result.bind parse
 
-let rec paren name (exprs: Expr list) =
-  let sb = StringBuilder()
-  sbAppend "( " sb  
-  |> sbAppend name 
-  |> ignore
-  exprs 
-  |> List.iter (fun e -> sbAppend " " sb |> sbAppend (exprToString e) |> ignore)
-  sbAppend ")" sb |> ignore
-  sb.ToString ()
-
-and exprToString = function
-| Literal ob             -> (string ob)
-| Unary (token,rhs)      -> paren token.Lexeme [rhs]
-| Grouping expr          -> paren "group" [expr]
-| Binary (lhs,token,rhs) -> paren token.Lexeme [lhs;rhs]
+let evalExprToString (exp:Expr) = 
+  match eval exp with  
+  | Ok v -> string v
+  | Error e -> string e
 
 let runPrompt () =
   printSplash () 
@@ -38,8 +29,13 @@ let runPrompt () =
     | null | "" -> ()
     | input ->
       match run input with
-      | Ok expr -> printfn "\x1b[36m%s\x1b[0m\n" (exprToString expr); loop ()
-      | Error e -> printfn "\x1b[31m%s\x1b[0m\n" e.Msg; loop ()
+      | Ok expr -> 
+        let evaluated = evalExprToString expr
+        let sexpr = exprToString expr
+        printfn "\x1b[36m%s\n%s\x1b[0m\n" sexpr evaluated
+        loop ()
+      | Error e -> 
+        printfn "\x1b[31m%s\x1b[0m\n" e.Msg; loop ()
   Ok <| loop ()
 
 let runFile fn =

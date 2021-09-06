@@ -10,7 +10,7 @@ open Flox.Interpreter
 open Flox.ErrorHandling
 
 let printSplash () = 
-  printfn "FLOX Programming Language\nCopyright 2021 Eric F. Vincent\nVersion 0.21\n"
+  printfn "FLOX Programming Language\nCopyright 2021 Eric F. Vincent\nVersion 0.21\n\n type #exit or <CTRL-D> to exit\n"
 
 let run source =
   scan source
@@ -26,16 +26,20 @@ let runPrompt () =
   let rec loop () = 
     printf "\x1b[1m\x1b[35mɸλοχ \x1b[33m>\x1b[0m "
     match Console.ReadLine() with
-    | null | "" -> ()
-    | input ->
+    | s when s.ToLower () = "#exit" -> ()
+    | input ->      
       match run input with
-      | Ok expr -> 
-        let evaluated = evalExprToString expr
-        let sexpr = exprToString expr
-        printfn "\x1b[36m%s\n%s\x1b[0m\n" sexpr evaluated
+      | Ok stmts -> 
+        printfn "\x1b[36m"
+        match interpret stmts with
+        | Ok _ -> 
+          printf "\x1b[0m" 
+        | Error e -> 
+          printf "\x1b[31m%s\x1b[0m\n" e.Msg
         loop ()
       | Error e -> 
-        printfn "\x1b[31m%s\x1b[0m\n" e.Msg; loop ()
+        printfn "\x1b[31m%s\x1b[0m\n" e.Msg
+        loop ()
   Ok <| loop ()
 
 let runFile fn =

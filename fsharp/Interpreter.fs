@@ -6,6 +6,13 @@ open Flox.ErrorHandling
 open Flox.Expressions
 open Flox.Statements
 
+type InterpreterState = {
+  StatementCount : int
+} with
+  static member init = {
+    StatementCount = 0
+  }
+
 let private toNum t = function
   | Num d -> Ok d
   | Str s -> 
@@ -76,7 +83,6 @@ let private evalBoolOp t op l r =
     | Nil -> return Bool false
   }
 
-
 let rec eval = function
 | Literal v -> Ok v
 | Unary (t, e) ->
@@ -100,23 +106,23 @@ let rec eval = function
   }
 | Grouping expr -> eval expr
 
-let evalStmt stmt =
+let evalStmt (stmt:Stmt) (istate:InterpreterState) : Result<InterpreterState, FloxError> =
   result {
     match stmt with
     | ExprStmt expr ->
       let! _ = eval expr
-      return Ok Nil
+      return { istate with StatementCount = istate.StatementCount + 1 }
     | PrintStmt expr ->
       let! v = eval expr
       printf "%s\n" (string v)
-      return Ok Nil
+      return { istate with StatementCount = istate.StatementCount + 1 }
   }
 
 let interpret prog =
   let rec loop istate = function
   | (stmt::rest) -> 
-    match execute stmt interpreterState with 
+    match evalStmt stmt istate with 
     | Ok (newState) -> loop newState rest
     | Error e -> Error e
   | [] -> Ok istate
-  loop prog
+  loop InterpreterState.init prog

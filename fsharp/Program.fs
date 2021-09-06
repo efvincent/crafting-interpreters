@@ -13,14 +13,9 @@ let run source =
   scan source
   |> Result.bind parse
 
-let evalExprToString (exp:Expr) = 
-  match eval exp with  
-  | Ok v -> string v
-  | Error e -> string e
-
 let runPrompt () =
   printSplash () 
-  let rec loop () = 
+  let rec loop istate = 
     printf "\x1b[1m\x1b[35mɸλοχ \x1b[33m>\x1b[0m "
     match Console.ReadLine() with
     | s when s.ToLower () = "#exit" -> ()
@@ -28,16 +23,17 @@ let runPrompt () =
       match run input with
       | Ok stmts -> 
         printfn "\x1b[36m"
-        match interpret stmts with
-        | Ok _ -> 
+        match interpret istate stmts with
+        | Ok istate' -> 
           printf "\x1b[0m" 
-        | Error e -> 
+          loop istate'
+        | Error (e, istate') -> 
           printf "\x1b[31m%s\x1b[0m\n" e.Msg
-        loop ()
+          loop istate'
       | Error e -> 
         printfn "\x1b[31m%s\x1b[0m\n" e.Msg
-        loop ()
-  Ok <| loop ()
+        loop istate
+  Ok <| loop InterpreterState.init 
 
 let runFile fn =
   printfn "Processing file %s" fn

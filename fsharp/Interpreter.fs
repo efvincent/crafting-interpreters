@@ -121,7 +121,7 @@ let rec eval istate expr : Result<(InterpreterState * Value), FloxError> =
       if exists istate'.Environment lhs.Lexeme then
         let istate'' = { istate' with
                           Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
-        return (istate'', Nil)
+        return (istate'', rVal)
       else
         return! Error <| (FloxError.FromToken lhs "Variable does not exist")
     }
@@ -133,9 +133,9 @@ let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, Fl
       let! (istate', _) = eval istate expr
       return { istate' with StatementCount = istate.StatementCount + 1 }
     | PrintStmt expr ->
-      let! (_,v) = eval istate expr
+      let! (istate',v) = eval istate expr
       printf "%s\n" (string v)
-      return { istate with StatementCount = istate.StatementCount + 1 }
+      return { istate' with StatementCount = istate.StatementCount + 1 }
     | VarStmt (t, Some e) ->
       let! (istate', v) = eval istate e
       return { istate' with 

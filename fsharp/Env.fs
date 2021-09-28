@@ -12,3 +12,7 @@ let upsertVariable (e:Env) n v : Env =
 /// Retrieves a value with a name `n` from the environment
 let getValue (e:Env) n : Value option =
   Map.tryFind n e
+
+let exists (e:Env) n =
+  Map.containsKey n e 
+  

@@ -15,6 +15,7 @@ with
     | Bool b -> string b 
     | Nil -> "nil"
 type Expr = Binary of Expr * Token * Expr
+          | Assignment of Token * Expr    // specifically, an IDENTIFIER token
           | Grouping of Expr
           | Literal of Value
           | Unary of Token * Expr
@@ -32,6 +33,7 @@ let rec private paren name (exprs: Expr list) =
 
 and exprToString = function
 | Literal ob             -> (string ob)
+| Assignment (lhs, rhs)  -> (sprintf "%s = %s" (string lhs) (string rhs))
 | Unary (token,rhs)      -> paren token.Lexeme [rhs]
 | Grouping expr          -> paren "group" [expr]
 | Binary (lhs,token,rhs) -> paren token.Lexeme [lhs;rhs]

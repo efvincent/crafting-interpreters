@@ -118,9 +118,12 @@ let rec eval istate expr : Result<(InterpreterState * Value), FloxError> =
   | Assignment (lhs, rhs) ->
     result {
       let! (istate', rVal) = eval istate rhs
-      let istate'' = { istate' with
-                        Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
-      return (istate'', Nil)
+      if exists istate'.Environment lhs.Lexeme then
+        let istate'' = { istate' with
+                          Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
+        return (istate'', Nil)
+      else
+        return! Error <| (FloxError.FromToken lhs "Variable does not exist")
     }
 
 let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =

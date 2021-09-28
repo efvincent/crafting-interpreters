@@ -63,7 +63,32 @@ let private makeExprRule nextRule matchTypes =
     nextRule tokens
     |> loop
 
-let rec private expression = equality
+/// The top level expression rule, all expression variants are cases of this rule. It is
+/// an alias of the assignment rule
+let rec private expression = assignment
+
+/// assignment  -> IDENTIFIER "=" assignment | equality;
+/// If we have an identifier token followed by the equals token, we evaluate the right side
+/// with the assignment rule, otherwise we pass the tokens to the equality rule
+and private assignment tokens =
+  result {
+    // evaluate an equality, which would consume up to, but not including the equals
+    match! equality tokens with
+    | (Var name, equals::rest) when equals.Type = EQUAL -> 
+      // in the case where we have a variable and an equals, the "rest" should have an expression
+      // for the right hand side of the assignment. Get that rhs, build and return the assignment
+      let! (rhs, tkns') = assignment rest
+      return (Assignment (name, rhs), tkns')
+    | (_, equals::rest) when equals.Type = EQUAL ->
+      // in the case where we have a something (not a variable) and an equals sign, that's an
+      // invalid assignment target
+      return! Error <| (FloxError.FromToken (List.head tokens) "Invalid Assignment Target", rest)
+    | equalityResult -> 
+      // in the case where the next token after the evaluated "equality" rule is not an equals
+      // sign, then the result of the equality rule evaluation matches the second case of the 
+      // assignment rule, and we can return that equality rule result
+      return equalityResult
+  } 
 and private equality =   makeExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
 and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL] 
 and private term   =     makeExprRule factor     [MINUS;PLUS] 

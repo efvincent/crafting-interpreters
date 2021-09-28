@@ -164,15 +164,24 @@ let private exprStatement tokens =
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
-let private statement tokens =
+let rec private declaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+  result {
+    match tokens with
+    | [] -> return! Error ({Line=0; Msg="Assertion Failed: Token expected in declaration parser"}, [])
+    | (t::rest) when t.Type = VAR -> return! varDeclaration rest
+    | _  -> return! statement tokens
+  }
+
+and private statement tokens =
   result {
     match tokens with
     | []                            -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
+    | (t::rest) when t.Type = LEFT_BRACE -> return! blockStatement rest
     | (t::rest) when t.Type = PRINT -> return! printStatement rest
     | tkns                          -> return! exprStatement tkns 
   }
 
-let private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+and private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
   match tokens with
   | (t::rest) -> 
     match t.Type with 
@@ -189,12 +198,9 @@ let private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (Fl
     | _ -> Error (FloxError.FromToken t "Identifier expected in variable declaration", tokens)
   | [] -> Error ({Line=0;Msg="Assertion Failed: Unexpected end of variable declaration"}, [])
 
-let private declaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+and private blockStatement tokens =
   result {
-    match tokens with
-    | [] -> return! Error ({Line=0; Msg="Assertion Failed: Token expected in declaration parser"}, [])
-    | (t::rest) when t.Type = VAR -> return! varDeclaration rest
-    | _  -> return! statement tokens
+    return! Error <| ({ Line = 0; Msg = "Not yet implemented" }, [])
   }
 
 let parse tokens =

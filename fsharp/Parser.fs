@@ -99,7 +99,7 @@ and private equality =   makeExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
 
 /// binary expression matching one of (> >= < <=) as the binary operator between
 /// two expressions parsed by the `term` rule
-and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL] 
+and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL]
 
 /// binary expression rule matching one of (-, +) as the binary operator between
 /// two expressions parsed by the `factor` rule

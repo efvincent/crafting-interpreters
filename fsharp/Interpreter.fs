@@ -86,52 +86,62 @@ let private evalBoolOp t op l r =
     | Nil -> return Bool false
   }
 
-let rec eval istate = function
-| Literal v -> Ok v
-| Unary (t, e) ->
-  eval istate e
-  |> Result.bind (fun value -> 
-    match (t.Type, value) with
-    | (MINUS, (Num n)) -> Ok (Num (0.0 - n))  
-    | (BANG, (Bool b)) -> Ok (Bool (not b))
-    | et -> Error (FloxError.FromToken t (sprintf "ASSERTION FAIL: Invalid unary token: %A" et))
-  )
-| Binary (lhs,t,rhs) ->
-  result {
-    let! lhsv = eval istate lhs
-    let! rhsv = eval istate rhs
-    match t.Type with 
-    | PLUS  -> return! evalAdd t lhsv rhsv
-    | MINUS -> return! evalNumericBinary t (-) lhsv rhsv
-    | STAR  -> return! evalNumericBinary t (*) lhsv rhsv
-    | SLASH -> return! evalNumericBinary t (/) lhsv rhsv
-    | op    -> return! evalBoolOp t op lhsv rhsv
-  }
-| Grouping expr -> eval istate expr
-| Var t ->
-  match getValue istate.Environment t.Lexeme with
-  | Some v -> Ok v
-  | None -> Error (FloxError.FromToken t (sprintf "Undefined variable '%s'" t.Lexeme))
+let rec eval istate expr : Result<(InterpreterState * Value), FloxError> = 
+  match expr with 
+  | Literal v -> Ok (istate, v)
+  | Unary (t, e) ->
+    result {
+      let! value = eval istate e
+      match (t.Type, value) with
+      | (MINUS, (istate', Num n)) -> return (istate', Num (0.0 - n))
+      | (BANG, (istate', Bool b)) -> return (istate', Bool (not b))
+      | et -> return! Error (FloxError.FromToken t (sprintf "ASSERTION FAIL: Invalid unary token: %A" et))
+    }
+  | Binary (lhs,t,rhs) ->
+    result {
+      let! (istate', lhsv)  = eval istate lhs
+      let! (istate'', rhsv) = eval istate' rhs
+      let! value =
+        match t.Type with 
+        | PLUS  -> evalAdd t lhsv rhsv
+        | MINUS -> evalNumericBinary t (-) lhsv rhsv
+        | STAR  -> evalNumericBinary t (*) lhsv rhsv
+        | SLASH -> evalNumericBinary t (/) lhsv rhsv
+        | op    -> evalBoolOp t op lhsv rhsv
+      return (istate'', value)
+    }
+  | Grouping expr -> eval istate expr
+  | Var t ->
+    match getValue istate.Environment t.Lexeme with
+    | Some v -> Ok (istate, v)
+    | None -> Error (FloxError.FromToken t (sprintf "Undefined variable '%s'" t.Lexeme))
+  | Assignment (lhs, rhs) ->
+    result {
+      let! (istate', rVal) = eval istate rhs
+      let istate'' = { istate' with
+                        Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
+      return (istate'', Nil)
+    }
 
 let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =
   result {
     match stmt with
     | ExprStmt expr ->
-      let! _ = eval istate expr
-      return { istate with StatementCount = istate.StatementCount + 1 }
+      let! (istate', _) = eval istate expr
+      return { istate' with StatementCount = istate.StatementCount + 1 }
     | PrintStmt expr ->
-      let! v = eval istate expr
+      let! (_,v) = eval istate expr
       printf "%s\n" (string v)
       return { istate with StatementCount = istate.StatementCount + 1 }
     | VarStmt (t, Some e) ->
-      let! v = eval istate e
-      return { istate with 
+      let! (istate', v) = eval istate e
+      return { istate' with 
                 StatementCount = istate.StatementCount + 1
-                Environment = defineVar istate.Environment t.Lexeme v }
+                Environment = upsertVariable istate.Environment t.Lexeme v }
     | VarStmt (t, None) ->
       return { istate with
                 StatementCount = istate.StatementCount + 1
-                Environment = defineVar istate.Environment t.Lexeme Nil }
+                Environment = upsertVariable istate.Environment t.Lexeme Nil }
   }
 
 let rec interpret istate = function

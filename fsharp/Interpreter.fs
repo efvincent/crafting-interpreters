@@ -13,7 +13,7 @@ type InterpreterState = {
 } with
   static member init = {
     StatementCount = 0
-    Environment = Map.ofList []
+    Environment = Env.init
   }
 
 let private toNum t = function
@@ -123,7 +123,7 @@ let rec eval istate expr : Result<(InterpreterState * Value), FloxError> =
                           Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
         return (istate'', rVal)
       else
-        return! Error <| (FloxError.FromToken lhs "Variable does not exist")
+        return! Error <| (FloxError.FromToken lhs (sprintf "Variable '%s' does not exist" lhs.Lexeme))
     }
 
 let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =

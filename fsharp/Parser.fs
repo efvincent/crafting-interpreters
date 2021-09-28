@@ -48,6 +48,9 @@ primary     -> NUMBER | STRING
 
 *)
 
+/// Makes binary expression rules. It will use the `nextRule` rule to evaluate either
+/// side of the binary operator. If the left side succeeds and the operator matches one of
+/// the list of provided tokens, evaluates the right side to complete the binary expression
 let private makeExprRule nextRule matchTypes =
   fun tokens ->
     let rec loop result =
@@ -89,11 +92,24 @@ and private assignment tokens =
       // assignment rule, and we can return that equality rule result
       return equalityResult
   } 
+
+/// binary expression matching != or == as the binary operator between two expressions parsed
+/// by the `comparison` rule
 and private equality =   makeExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
+
+/// binary expression matching one of (> >= < <=) as the binary operator between
+/// two expressions parsed by the `term` rule
 and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL] 
+
+/// binary expression rule matching one of (-, +) as the binary operator between
+/// two expressions parsed by the `factor` rule
 and private term   =     makeExprRule factor     [MINUS;PLUS] 
+
+/// binary expression rule matching one of (/, *) as the binary operator between
+/// two expressions parsed by the `unary` rule
 and private factor =     makeExprRule unary      [SLASH;STAR] 
 
+///
 and private unary tokens =
   match tokens with
   | (tkn::tkns) ->

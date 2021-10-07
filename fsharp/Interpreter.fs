@@ -7,15 +7,6 @@ open Flox.Expressions
 open Flox.Statements
 open Flox.Environment
 
-type InterpreterState = {
-  StatementCount : int
-  Environment : Env
-} with
-  static member init = {
-    StatementCount = 0
-    Environment = Env.init
-  }
-
 let private toNum t = function
   | Num d -> Ok d
   | Str s -> 
@@ -126,9 +117,24 @@ let rec eval istate expr : Result<(InterpreterState * Value), FloxError> =
         return! Error <| (FloxError.FromToken lhs (sprintf "Variable '%s' does not exist" lhs.Lexeme))
     }
 
-let evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =
+and blockStmt (istate:InterpreterState) (stmts: Stmt list) : Result<InterpreterState, FloxError> =
+  result {
+    let rec loop state statements =
+      result {      
+        match statements with 
+        | stmt::rest -> 
+          let! state' = evalStmt state stmt
+          return! loop state' rest
+        | [] -> return state
+      }
+    return! loop istate stmts
+  }
+
+and evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =
   result {
     match stmt with
+    | Block stmts ->
+      return istate
     | ExprStmt expr ->
       let! (istate', _) = eval istate expr
       return { istate' with StatementCount = istate.StatementCount + 1 }

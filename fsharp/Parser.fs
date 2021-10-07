@@ -20,8 +20,11 @@ declaration -> varDecl
 varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement   -> exprStmt 
+              | ifStmt
               | printStmt 
               | block ;
+
+ifStmt      -> "if" "(" expression ")" statement ("else" statement )? ;
 
 block       -> "{" declaration* "}" ;
 
@@ -138,8 +141,8 @@ and private primary tokens =
       expression tkns
       |> Result.bind (fun (expr,rest) -> 
         match rest with 
-        | (t::rest') when t.Type = RIGHT_PAREN -> Ok (Grouping expr, rest')
-        | (t::rest') -> Error (FloxError.FromToken t "Expect ')' after expression", rest')
+        | t::rest' when t.Type = RIGHT_PAREN -> Ok (Grouping expr, rest')
+        | t::rest' -> Error (FloxError.FromToken t "Expect ')' after expression", rest')
         | [] -> Error (FloxError.FromToken tkn "Expect ')' after expression", tkns)
       )
     | _ -> Error ((FloxError.FromToken tkn "Expecting expression"), tkns)
@@ -148,19 +151,19 @@ and private primary tokens =
 
 let private printStatement tokens =
   result {
-    let! (expr, rest) = expression tokens
+    let! expr, rest = expression tokens
     match rest with
-    | (t::rest') when t.Type = SEMICOLON -> return (PrintStmt expr, rest')
-    | (t::rest') -> return! Error (FloxError.FromToken t "print statement expects ';' after value", rest')
+    | t::rest' when t.Type = SEMICOLON -> return (PrintStmt expr, rest')
+    | t::rest' -> return! Error (FloxError.FromToken t "print statement expects ';' after value", rest')
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
 let private exprStatement tokens =
   result {
-    let! (expr, rest) = expression tokens
+    let! expr, rest = expression tokens
     match rest with
-    | (t::rest') when t.Type = SEMICOLON -> return (ExprStmt expr, rest')
-    | (t::rest') -> return! Error (FloxError.FromToken t "expected ';' after value", rest')
+    | t::rest' when t.Type = SEMICOLON -> return (ExprStmt expr, rest')
+    | t::rest' -> return! Error (FloxError.FromToken t "expected ';' after value", rest')
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
@@ -168,30 +171,30 @@ let rec private declaration (tokens : Token list) : Result<Stmt * Token list, (F
   result {
     match tokens with
     | [] -> return! Error ({Line=0; Msg="Assertion Failed: Token expected in declaration parser"}, [])
-    | (t::rest) when t.Type = VAR -> return! varDeclaration rest
+    | t::rest when t.Type = VAR -> return! varDeclaration rest
     | _  -> return! statement tokens
   }
 
 and private statement tokens =
   result {
     match tokens with
-    | []                            -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
-    | (t::rest) when t.Type = LEFT_BRACE -> return! blockStatement rest
-    | (t::rest) when t.Type = PRINT -> return! printStatement rest
-    | tkns                          -> return! exprStatement tkns 
+    | []                                -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
+    | t::rest when t.Type = LEFT_BRACE  -> return! blockStatement rest
+    | t::rest when t.Type = PRINT       -> return! printStatement rest
+    | tkns                              -> return! exprStatement tkns 
   }
 
 and private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
   match tokens with
-  | (t::rest) -> 
+  | t::rest -> 
     match t.Type with 
     | IDENTIFIER _ ->
       result {
         match rest with 
-        | (op::rest') when op.Type = EQUAL ->
-          let! (initializer,rest'') = expression rest'
+        | op::rest' when op.Type = EQUAL ->
+          let! initializer, rest'' = expression rest'
           match rest'' with
-          | (semi::afterSemi) when semi.Type = SEMICOLON -> return (VarStmt (t, Some initializer), afterSemi)
+          | semi::afterSemi when semi.Type = SEMICOLON -> return (VarStmt (t, Some initializer), afterSemi)
           | _ -> return! Error (FloxError.FromToken op "expected ';' after value", rest'')
         | _ -> return! Error({Line=0;Msg="Unexpected end of input"}, [])
       }
@@ -200,7 +203,25 @@ and private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (Fl
 
 and private blockStatement tokens =
   result {
-    return! Error <| ({ Line = 0; Msg = "Not yet implemented" }, [])
+    // Upon entry, the opening brace will already have been consumed by the `statement` parser. The first
+    // token in the passed list will be the first token inside a block, or the closing brace for an
+    // empty block
+    let rec loop acc tkns : Result<(Stmt * Token list), (FloxError * Token list)> =
+      result {
+        match tkns with
+        | t::rest when t.Type = RIGHT_BRACE ->
+          // we've seen the closing brace, this block is over. We consume the brace
+          // and return the reversed list of statements - reversed because we were prepending
+          return (Block (List.rev acc), rest)
+        | _::_ ->
+          // we see a token that's not the last token, and it's not the closing brace, so
+          // it belongs to a statement (or expression) inside the block 
+          let! (stmt, rest') = declaration tkns
+          return! loop (stmt::acc) rest'
+        | [] ->
+          return! Error ({Line=0;Msg="Unexpected end of input processing statement block" }, [])
+      }      
+    return! loop [] tokens
   }
 
 let parse tokens =

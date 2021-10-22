@@ -15,15 +15,18 @@ let run source =
 
 let runPrompt () =
   printSplash () 
-  let rec loop istate = 
+  let rec loop env = 
     printf "\x1b[1m\x1b[35mɸλοχ \x1b[33m>\x1b[0m "
     match let input = Console.ReadLine() in if isNull input then "#exit" else input with
     | s when s.ToLower () = "#exit" -> ()
+    | s when s.ToLower () = "#env" -> 
+      printfn "%s" (string env)
+      loop env
     | input ->      
       match run input with
       | Ok stmts -> 
         printfn "\x1b[36m"
-        match interpret istate stmts with
+        match interpret env stmts with
         | Ok istate' -> 
           printf "\x1b[0m" 
           loop istate'
@@ -32,8 +35,8 @@ let runPrompt () =
           loop istate'
       | Error e -> 
         printfn "\x1b[31m%s\x1b[0m\n" e.Msg
-        loop istate
-  Ok <| loop InterpreterState.init 
+        loop env
+  Ok <| loop (Flox.Environment.Env.Init ())
 
 let runFile fn =
   printfn "Processing file %s" fn

@@ -2,74 +2,128 @@ module Flox.Environment
 
 open Flox.Expressions
 
-type Env = {
+type Scope = {
   Id: int
   Vars: Map<string, Value>
-  Parent: Env option
-} with 
-  static member Init () = 
-    { Vars   = Map.empty 
-    ; Parent = None
-    ; Id     = let g = System.Guid.NewGuid() in g.GetHashCode()
-    }
-
-  /// insert or update variable binding in this environment
-  member this.UpsertVariable n v =
-    { this with Vars = Map.add n v this.Vars }
-
-  /// returns true if the variable exists either in this environment or a parent environment
-  member this.VarExists n =
-    match Map.containsKey n this.Vars, this.Parent with
-    | (false, Some parent) -> parent.VarExists n
-    | (false, None) -> false
-    | (true, _) -> true
-
-  /// Retrieves a value with a name `n` from the environment, or delegates
-  /// to the parent environment if it exists
-  member this.GetValue n =
-    match Map.tryFind n this.Vars, this.Parent with
-    | None, Some parent -> parent.GetValue n
-    | None, None        -> None
-    | Some v, _         -> Some v
-
-type InterpreterState = {
-  StatementCount : int
-  RootEnv : Env
-  Environments : Map<int, Env>
+  ParentId: int option
 } with
+  /// Create a new scope with a unique ID
+  static member Init id =
+    { Vars = Map.empty 
+    ; ParentId = None    
+    ; Id = id }
+  override this.ToString () =
+    let pid = Option.defaultValue 0 this.ParentId
+    let vars =
+      this.Vars
+      |> Map.toList
+      |> List.sortBy (fun (k,v) -> k)
+      |> List.map (fun (k,v) -> sprintf "%s = %A" k v)
+      |> String.concat "\n"
+      |> fun s -> if s = "" then "No Variables" else s    
+    sprintf "%i:%i\n%s" this.Id pid vars
+
+/// Record tracks the root scope of an environment, and a map of scope IDs to scopes.
+/// Note: It would be more efficient for Scopes to be a `Map<int, (Scope * int list)>`
+/// where the `int list` would be the list of children. The way it currently stands, 
+/// to delete a scope requires sequential search of all scopes for each scope descended
+/// from a scope being deleted.
+type Env = {
+  NextScopeId: int
+  StatementCount: int
+  RootScopeId: int
+  Scopes: Map<int, Scope>
+} with
+  /// Create a new environment (there should only be one per interpreter at this time) with
+  /// a new root scope
   static member Init () =
-    let rootEnv = Env.Init() in 
-    { StatementCount = 0
-    ; RootEnv = rootEnv
-    ; Environments = Map.empty.Add(rootEnv.Id, rootEnv) }
-  
-  /// insert or update a variable binding in the appropriate environment and
-  /// return updated interpreter state or an error
-  member this.UpsertVariable envId n v =
-    this.GetEnv (Some envId)
-    |> Result.map (fun (env:Env) -> 
-        { this with Environments = Map.add envId (env.UpsertVariable n v) this.Environments } 
-      )
+    let root = Scope.Init 1
+    { NextScopeId = 2
+    ; StatementCount = 0
+    ; RootScopeId = root.Id
+    ; Scopes = Map.add root.Id root Map.empty }
 
-  /// Gets the requested environment or returns an error     
-  member this.GetEnv = function
-    | None -> Ok this.RootEnv
-    | Some envId -> 
-      match Map.tryFind envId this.Environments with
-      | Some env -> Ok env
-      | None -> Error {Tokens.FloxError.Line=0; Tokens.FloxError.Msg=(sprintf "Uknown environment with id: %i" envId )}
+  override this.ToString () =
+    let scopes = 
+      this.Scopes
+      |> Map.toList
+      |> List.sortBy (fun (k,_) -> k)
+      |> List.map (snd >> string)
+      |> String.concat "\n-------------"
+    sprintf "statements: %i\nscopes:\n%s" this.StatementCount scopes
 
-  /// Creates a new environment with the parent ID set to environment with the passed ID, 
-  /// or returns an error if there is no such environment
-  member this.NewEnvironment parentEnvId =
-    this.GetEnv (Some parentEnvId)
-    |> Result.map (fun parent ->
-        let env = { Env.Init () with Parent = Some parent }
-        { this with Environments = Map.add env.Id env this.Environments }
-      )
+  /// Given a scopeId option, returns the scope from the environment with that ID,
+  /// or the root scope if the Id is not found or is None
+  member this.GetScope (scopeId:int option) =
+    match scopeId with
+    | Some sid -> 
+      match Map.tryFind sid this.Scopes with
+      | Some s -> s
+      | None -> Map.find this.RootScopeId this.Scopes
+    | None -> Map.find this.RootScopeId this.Scopes
 
-  /// Remove an environment from the interpreter state, this happens when a scope is closed. Note that
-  /// this does not handle the case of closures where it's possible for a variable to exist both in its
-  /// scope and in a new environment created by the closure. Closures will be interesting to solve.
-  member this.CloseEnvironment envId =
-    Ok {this with Environments = Map.remove envId this.Environments }
+  /// Adds a new scope to the environment with optional parent Id. If the parent Id is none or
+  /// doesn't exist, the root scope is used. Note that the parent ID on the new scope will be
+  /// correct even if an invalid parent Id is sent to the function (it will be the ID of the
+  /// root scope)
+  member this.AddScope parentId =
+    let parent = this.GetScope parentId
+    let newScope = { Scope.Init this.NextScopeId with ParentId = Some parent.Id }
+    ({ this with 
+        Scopes = Map.add newScope.Id newScope this.Scopes 
+        NextScopeId = this.NextScopeId + 1
+     }, newScope)
+
+  /// Returns `Some id` of the scope in which the variable is bound, following the line of parent IDs up the
+  /// scope hierarchy, or `None` if the variable is not bound in this scope or an anscestor
+  member this.ScopeWhereBound vname scopeId =
+    let scope = this.GetScope scopeId
+    if Map.containsKey vname scope.Vars then Some scope.Id
+    elif scope.Id <> this.RootScopeId then
+      match scope.ParentId with 
+      | Some pid -> this.ScopeWhereBound vname (Some pid)
+      | None -> None
+    else None
+
+  /// Binds a variable value to the variable name within the scope requested (or root scope if None)
+  member this.BindVar vname value scopeId =
+    let scope = this.GetScope scopeId
+    let scope' = { scope with Vars = Map.add vname value scope.Vars }
+    { this with Scopes = (Map.add scope'.Id scope' this.Scopes )}
+
+  /// Gets the value bound to the variable name in the selected scope, if it exists, None otherwise
+  member this.GetValue vname scopeId =
+    let scope = this.GetScope scopeId
+    match (Map.tryFind vname scope.Vars, scope.ParentId) with
+    | Some v, _ -> Some v
+    | None, None -> None
+    | None, pid -> this.GetValue vname pid
+
+  /// Drops the identified scope from the environment, and any scopes with that scope as the parent, so 
+  /// long as the requested scope is not the root scope. If the request is made to drop the root scope,
+  /// it is ignored. See the note about efficiency in the definition of Env
+  member this.DropScope scopeId =
+    if scopeId = this.RootScopeId 
+    then this 
+    else
+      let childrenOf id =
+        this.Scopes
+        |> Map.toList
+        |> List.filter (
+          fun (_, s) -> 
+            match s.ParentId with 
+            | None -> false 
+            | Some id' -> id = id' && id <> this.RootScopeId)
+        |> List.map fst
+      let rec go (acc:Set<int>) (ids:int seq) =
+        let children = Seq.collect childrenOf ids |> Set.ofSeq    // note: collect === flatMap
+        if children.Count = 0 then acc
+        else go (Set.union acc children) children
+      let rec remove m = function 
+        | [] -> m
+        | (id::rest) -> remove (Map.remove id m) rest
+      let scopes' = 
+        go (Set.singleton scopeId) (childrenOf scopeId) 
+        |> Set.toList 
+        |> remove this.Scopes 
+      { this with Scopes = scopes' }

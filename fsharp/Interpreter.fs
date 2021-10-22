@@ -77,21 +77,21 @@ let private evalBoolOp t op l r =
     | Nil -> return Bool false
   }
 
-let rec eval istate expr : Result<(InterpreterState * Value), FloxError> = 
+let rec eval env scopeId expr : Result<(Env * Value), FloxError> = 
   match expr with 
-  | Literal v -> Ok (istate, v)
+  | Literal v -> Ok (env, v)
   | Unary (t, e) ->
     result {
-      let! value = eval istate e
+      let! value = eval env scopeId e
       match (t.Type, value) with
-      | (MINUS, (istate', Num n)) -> return (istate', Num (0.0 - n))
-      | (BANG, (istate', Bool b)) -> return (istate', Bool (not b))
+      | (MINUS, (env', Num n)) -> return (env', Num (0.0 - n))
+      | (BANG, (env', Bool b)) -> return (env', Bool (not b))
       | et -> return! Error (FloxError.FromToken t (sprintf "ASSERTION FAIL: Invalid unary token: %A" et))
     }
   | Binary (lhs,t,rhs) ->
     result {
-      let! (istate', lhsv)  = eval istate lhs
-      let! (istate'', rhsv) = eval istate' rhs
+      let! (env', lhsv)  = eval env scopeId lhs
+      let! (env'', rhsv) = eval env' scopeId rhs
       let! value =
         match t.Type with 
         | PLUS  -> evalAdd t lhsv rhsv
@@ -99,63 +99,64 @@ let rec eval istate expr : Result<(InterpreterState * Value), FloxError> =
         | STAR  -> evalNumericBinary t (*) lhsv rhsv
         | SLASH -> evalNumericBinary t (/) lhsv rhsv
         | op    -> evalBoolOp t op lhsv rhsv
-      return (istate'', value)
+      return (env'', value)
     }
-  | Grouping expr -> eval istate expr
+  | Grouping expr -> eval env scopeId expr
   | Var t ->
-    match getValue istate.Environment t.Lexeme with
-    | Some v -> Ok (istate, v)
+    match env.GetValue t.Lexeme scopeId with
+    | Some v -> Ok (env, v)
     | None -> Error (FloxError.FromToken t (sprintf "Undefined variable '%s'" t.Lexeme))
   | Assignment (lhs, rhs) ->
     result {
-      let! (istate', rVal) = eval istate rhs
-      if exists istate'.Environment lhs.Lexeme then
-        let istate'' = { istate' with
-                          Environment = upsertVariable istate'.Environment lhs.Lexeme rVal }
-        return (istate'', rVal)
-      else
+      match env.ScopeWhereBound lhs.Lexeme scopeId with
+      | Some sid -> 
+        let! (env', rVal) = eval env scopeId rhs
+        return (env'.BindVar lhs.Lexeme rVal (Some sid), rVal)
+      | None ->
         return! Error <| (FloxError.FromToken lhs (sprintf "Variable '%s' does not exist" lhs.Lexeme))
     }
 
-and blockStmt (istate:InterpreterState) (stmts: Stmt list) : Result<InterpreterState, FloxError> =
+and blockStmt (environment:Env) scopeId (stmts: Stmt list) : Result<Env, FloxError> =
   result {
-    let rec loop state statements =
+    let rec loop env sid statements =
       result {      
         match statements with 
         | stmt::rest -> 
-          let! state' = evalStmt state stmt
-          return! loop state' rest
-        | [] -> return state
+          let! env' = evalStmt env sid stmt
+          return! loop env' sid rest
+        | [] -> return env
       }
-    return! loop istate stmts
+    // TODO: the block scope will be orphaned if we short circuit out of the `result { }` block due to
+    // an error
+    let (env, blockScope) = environment.AddScope scopeId
+    let! env' = loop env (Some blockScope.Id) stmts
+    return env'.DropScope blockScope.Id
   }
 
-and evalStmt (istate:InterpreterState) (stmt:Stmt) : Result<InterpreterState, FloxError> =
+and evalStmt (env:Env) (scopeId: int option) (stmt:Stmt) : Result<Env, FloxError> =
   result {
     match stmt with
     | Block stmts ->
-      return istate
+      return! blockStmt env scopeId stmts
     | ExprStmt expr ->
-      let! (istate', _) = eval istate expr
-      return { istate' with StatementCount = istate.StatementCount + 1 }
+      let! (env', _) = eval env scopeId expr
+      return { env' with StatementCount = env'.StatementCount + 1 }
     | PrintStmt expr ->
-      let! (istate',v) = eval istate expr
+      let! (env',v) = eval env scopeId expr
       printf "%s\n" (string v)
-      return { istate' with StatementCount = istate.StatementCount + 1 }
+      return { env' with StatementCount = env'.StatementCount + 1 }
     | VarStmt (t, Some e) ->
-      let! (istate', v) = eval istate e
-      return { istate' with 
-                StatementCount = istate.StatementCount + 1
-                Environment = upsertVariable istate.Environment t.Lexeme v }
+      let! (env', v) = eval env scopeId e
+      let env'' = env'.BindVar t.Lexeme v scopeId 
+      return { env'' with StatementCount = env'.StatementCount + 1 }
     | VarStmt (t, None) ->
-      return { istate with
-                StatementCount = istate.StatementCount + 1
-                Environment = upsertVariable istate.Environment t.Lexeme Nil }
+      return { (env.BindVar t.Lexeme Nil scopeId) with 
+                StatementCount = env.StatementCount + 1 } 
   }
 
 let rec interpret istate = function
 | (stmt::rest) -> 
-  match evalStmt istate stmt with 
+  match evalStmt istate None stmt with 
   | Ok (newState) -> interpret newState rest
   | Error e -> Error (e, istate)
 | [] -> Ok istate

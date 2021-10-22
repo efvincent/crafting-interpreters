@@ -1,7 +1,6 @@
 module Flox.Environment
 
 open Flox.Expressions
-open Flox.ErrorHandling.ResultCE
 
 type Env = {
   Id: int

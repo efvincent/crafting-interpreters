@@ -191,6 +191,8 @@ and private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (Fl
     | IDENTIFIER _ ->
       result {
         match rest with 
+        | op::rest' when op.Type = SEMICOLON ->
+          return (VarStmt (t, None), rest')
         | op::rest' when op.Type = EQUAL ->
           let! initializer, rest'' = expression rest'
           match rest'' with

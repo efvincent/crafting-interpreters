@@ -20,10 +20,15 @@ declaration -> varDecl
 varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
 
 statement   -> exprStmt 
+              | forStmt
               | ifStmt
               | printStmt 
               | whileStmt
               | block ;
+
+forStmt     -> "for" "(" ( varDecl | exprStmt | ";" )
+               expression? ";"
+               expression? ")" statement ;              
 
 whileStmt   -> "while" "(" expression ")" statement ;
 
@@ -215,7 +220,7 @@ let rec private ifStatement tokens =
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
-and private whileStatement tokens : Result<(Stmt * Token list), (FloxError * Token list)> =
+and private whileStatement tokens =
   result {
     match tokens with
     | t::rest when t.Type = LEFT_PAREN -> 
@@ -230,6 +235,12 @@ and private whileStatement tokens : Result<(Stmt * Token list), (FloxError * Tok
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
+and private forStatement tokens : Result<(Stmt * Token list), (FloxError * Token list)> =
+  result {
+
+    return! Error ({Line=0;Msg="nyi"}, [])
+  }
+
 and private declaration tokens =
   result {
     match tokens with
@@ -242,11 +253,12 @@ and private statement tokens =
   result {
     match tokens with
     | []                                -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
-    | t::rest when t.Type = IF          -> return! ifStatement rest
-    | t::rest when t.Type = LEFT_BRACE  -> return! blockStatement rest
-    | t::rest when t.Type = PRINT       -> return! printStatement rest
-    | t::rest when t.Type = WHILE       -> return! whileStatement rest
-    | tkns                              -> return! exprStatement tkns 
+    | t::tkns when t.Type = IF          -> return! ifStatement    tkns
+    | t::tkns when t.Type = LEFT_BRACE  -> return! blockStatement tkns
+    | t::tkns when t.Type = PRINT       -> return! printStatement tkns
+    | t::tkns when t.Type = WHILE       -> return! whileStatement tkns
+    | t::tkns when t.Type = FOR         -> return! forStatement   tkns
+    | tkns                              -> return! exprStatement  tkns 
   }
 
 and private varDeclaration tokens =

@@ -1,11 +1,10 @@
-fun main() {
-    // this is a comment, ignore it
-    print("this is a string");
-    x = 1000;
-    y = 20.55;
-    if (x >= 23.3 and y <= 100 and z != 23) {
-        print("things are not good");  // this is true
-    } else {
-        do_other_work(FALSE);
+// this is a comment, ignore it
+var i = 0;
+while (i < 10) {
+    var j = 0;
+    while (j < 10) {
+        print "" + i + ", " + j;
+        j = j + 1;
     }
+    i = i + 1;
 }

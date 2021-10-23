@@ -133,11 +133,28 @@ and blockStmt (environment:Env) scopeId (stmts: Stmt list) : Result<Env, FloxErr
     return env'.DropScope blockScope.Id
   }
 
+and ifStmt env scopeId cond ifBlock elseBlockOpt =
+  result {
+      let! postCondEnv, condVal = eval env scopeId cond
+      let! boolVal = toBool None condVal
+      let! postIfEnv = 
+        if boolVal then 
+          evalStmt postCondEnv scopeId ifBlock
+        else
+          match elseBlockOpt with
+          | Some elseBlock -> evalStmt postCondEnv scopeId elseBlock            
+          | None -> Ok postCondEnv
+      return { postIfEnv with StatementCount = postIfEnv.StatementCount + 1 }    
+  }   
+
 and evalStmt (env:Env) (scopeId: int option) (stmt:Stmt) : Result<Env, FloxError> =
   result {
     match stmt with
     | Block stmts ->
       return! blockStmt env scopeId stmts
+    | IfStmt (cond, ifBlock, elseBlockOpt) ->
+      let! env' = ifStmt env scopeId cond ifBlock elseBlockOpt
+      return { env' with StatementCount = env'.StatementCount + 1 }
     | ExprStmt expr ->
       let! (env', _) = eval env scopeId expr
       return { env' with StatementCount = env'.StatementCount + 1 }

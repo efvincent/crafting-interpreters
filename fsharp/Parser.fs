@@ -167,7 +167,34 @@ let private exprStatement tokens =
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
-let rec private declaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+let rec private ifStatement tokens = 
+  result {
+    match tokens with
+    | t::rest' when t.Type = LEFT_PAREN ->
+      let! cond, postCond = expression rest'
+      match postCond with
+      | t::postRParen when t.Type = RIGHT_PAREN ->
+        let! thenStmt, postThen = statement postRParen
+        let! elseStmtOpt = 
+          result {
+            match postThen with
+            | t::postElse when t.Type = ELSE ->
+              let! (elseStmt, tkns) = statement postElse
+              return Some (elseStmt, tkns)
+            | _ -> return None
+          }
+        match elseStmtOpt with
+        | Some (elseStmt, postElseBlock) ->
+          return (IfStmt(cond, thenStmt, Some elseStmt), postElseBlock)
+        | None ->
+          return (IfStmt(cond, thenStmt, None), postThen)
+      | t::tkns -> return! Error (FloxError.FromToken t "expected closing paren in if condition", tkns)
+      | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+    | t::tkns -> return! Error (FloxError.FromToken t "expected left paren in if condition", tkns)
+    | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+  }
+
+and private declaration tokens =
   result {
     match tokens with
     | [] -> return! Error ({Line=0; Msg="Assertion Failed: Token expected in declaration parser"}, [])
@@ -179,12 +206,13 @@ and private statement tokens =
   result {
     match tokens with
     | []                                -> return! Error ({Line=0; Msg="Token expected in statement" }, [])
+    | t::rest when t.Type = IF          -> return! ifStatement rest
     | t::rest when t.Type = LEFT_BRACE  -> return! blockStatement rest
     | t::rest when t.Type = PRINT       -> return! printStatement rest
     | tkns                              -> return! exprStatement tkns 
   }
 
-and private varDeclaration (tokens : Token list) : Result<Stmt * Token list, (FloxError * Token list)> =
+and private varDeclaration tokens =
   match tokens with
   | t::rest -> 
     match t.Type with 

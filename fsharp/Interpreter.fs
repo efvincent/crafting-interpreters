@@ -191,7 +191,8 @@ and evalStmt (env:Env) (scopeId: int option) (stmt:Stmt) : Result<Env, FloxError
       return { env' with StatementCount = env'.StatementCount + 1 }
     | PrintStmt expr ->
       let! (env',v) = eval env scopeId expr
-      printf "%s\n" (string v)
+      /// TODO: Smarter handling of escapes in string literals
+      printf "%s" ((string v).Replace("\\n", "\n").Replace("\\t", "\t"))
       return { env' with StatementCount = env'.StatementCount + 1 }
     | VarStmt (t, Some e) ->
       let! (env', v) = eval env scopeId e

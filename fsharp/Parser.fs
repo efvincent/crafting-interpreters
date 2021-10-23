@@ -34,7 +34,11 @@ printStmt   -> "print" expression ";" ;
 
 expression  -> assignment ;
 
-assignment  -> IDENTIFIER "=" assignment | equality;
+assignment  -> IDENTIFIER "=" assignment | logic_or;
+
+logic_or    -> logic_and ( "or" logic_and )*;
+
+logic_and   -> equality ( "and" equality )*;
 
 equality    -> comparison ( ( "!=" | "==") comparison )* ;
 
@@ -57,7 +61,7 @@ primary     -> NUMBER | STRING
 /// Makes binary expression rules. It will use the `nextRule` rule to evaluate either
 /// side of the binary operator. If the left side succeeds and the operator matches one of
 /// the list of provided tokens, evaluates the right side to complete the binary expression
-let private makeExprRule nextRule matchTypes =
+let private makeBinaryExprRule nextRule matchTypes =
   fun tokens ->
     let rec loop result =
       result
@@ -72,6 +76,16 @@ let private makeExprRule nextRule matchTypes =
     nextRule tokens
     |> loop
 
+let private makeLogicRule ttype next tkns =
+  let logOp = if ttype = OR then Or else And
+  result {
+    match! next tkns with
+    | (lhs, tkn::rest) when tkn.Type = ttype ->
+      let! (rhs,tokens) = next rest
+      return (Logical (lhs, logOp, rhs), tokens)
+    | andResult -> return andResult
+  }
+
 /// The top level expression rule, all expression variants are cases of this rule. It is
 /// an alias of the assignment rule
 let rec private expression = assignment
@@ -82,7 +96,7 @@ let rec private expression = assignment
 and private assignment tokens =
   result {
     // evaluate an equality, which would consume up to, but not including the equals
-    match! equality tokens with
+    match! logicOr tokens with
     | (Var name, equals::rest) when equals.Type = EQUAL -> 
       // in the case where we have a variable and an equals, the "rest" should have an expression
       // for the right hand side of the assignment. Get that rhs, build and return the assignment
@@ -92,30 +106,34 @@ and private assignment tokens =
       // in the case where we have a something (not a variable) and an equals sign, that's an
       // invalid assignment target
       return! Error <| (FloxError.FromToken (List.head tokens) "Invalid Assignment Target", rest)
-    | equalityResult -> 
-      // in the case where the next token after the evaluated "equality" rule is not an equals
-      // sign, then the result of the equality rule evaluation matches the second case of the 
-      // assignment rule, and we can return that equality rule result
-      return equalityResult
+    | logicResult -> 
+      // in the case where the next token after the evaluated "logicOr" rule is not an equals
+      // sign, then the result of the logical Or rule evaluation matches the second case of the 
+      // assignment rule, and we can return that logical or rule result
+      return logicResult
   } 
+
+and private logicOr = makeLogicRule OR logicAnd
+
+and private logicAnd = makeLogicRule AND equality
 
 /// binary expression matching != or == as the binary operator between two expressions parsed
 /// by the `comparison` rule
-and private equality =   makeExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
+and private equality =   makeBinaryExprRule comparison [BANG_EQUAL; EQUAL_EQUAL]
 
 /// binary expression matching one of (> >= < <=) as the binary operator between
 /// two expressions parsed by the `term` rule
-and private comparison = makeExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL]
+and private comparison = makeBinaryExprRule term       [GREATER; GREATER_EQUAL; LESS; LESS_EQUAL]
 
 /// binary expression rule matching one of (-, +) as the binary operator between
 /// two expressions parsed by the `factor` rule
-and private term   =     makeExprRule factor     [MINUS;PLUS] 
+and private term   =     makeBinaryExprRule factor     [MINUS;PLUS] 
 
 /// binary expression rule matching one of (/, *) as the binary operator between
 /// two expressions parsed by the `unary` rule
-and private factor =     makeExprRule unary      [SLASH;STAR] 
+and private factor =     makeBinaryExprRule unary      [SLASH;STAR] 
 
-///
+/// rule to parse unary expressions, such as not (!) and negation (-)
 and private unary tokens =
   match tokens with
   | (tkn::tkns) ->

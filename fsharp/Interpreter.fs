@@ -101,6 +101,7 @@ let rec eval env scopeId expr : Result<(Env * Value), FloxError> =
         | op    -> evalBoolOp t op lhsv rhsv
       return (env'', value)
     }
+  | Logical (lhs,op,rhs) -> evalLogicalOp op env scopeId lhs rhs
   | Grouping expr -> eval env scopeId expr
   | Var t ->
     match env.GetValue t.Lexeme scopeId with
@@ -115,6 +116,22 @@ let rec eval env scopeId expr : Result<(Env * Value), FloxError> =
       | None ->
         return! Error <| (FloxError.FromToken lhs (sprintf "Variable '%s' does not exist" lhs.Lexeme))
     }
+
+/// evaluate a logical operation (either AND or OR). Function short circuits logic depending on the operator
+and evalLogicalOp op env scopeId lhs rhs =
+  let shortCircuit = op = Or
+  result {    
+    let! (env', lhv) = eval env scopeId lhs
+    match toBool () lhv with
+    | Ok v when v = shortCircuit ->
+      return (env', (Bool shortCircuit))
+    | Ok _ ->
+      let! (env'', rhv) = eval env' scopeId rhs
+      match toBool () rhv with
+      | Ok v -> return (env'', (Bool v))
+      | Error _ -> return! Error {Line=0;Msg="Right hand side of logical operator not valid boolean"}
+    | Error _ -> return! Error {Line=0;Msg="Left hand side of logical operator not valid boolean"}
+  }
 
 and blockStmt (environment:Env) scopeId (stmts: Stmt list) : Result<Env, FloxError> =
   result {

@@ -237,8 +237,99 @@ and private whileStatement tokens =
 
 and private forStatement tokens : Result<(Stmt * Token list), (FloxError * Token list)> =
   result {
+    match tokens with
+    | t::rest when t.Type = LEFT_PAREN ->
+      // rest = "for (* <-- we are here"
+      let! (initializer, postInit) =
+        match rest with 
+        | t::tkns when t.Type = SEMICOLON -> 
+          // for(; 
+          Ok (None, tkns)
+        | t::tkns when t.Type = VAR ->
+          // for(var i = 0;
+          result { 
+            let! init, tkns' = varDeclaration tkns
+            return (Some init, tkns')
+          }
+        | tkns ->
+          // for(x = x + 1; 
+          result {
+            let! init, tkns' = exprStatement tkns
+            return (Some init, tkns')
+          }
+      
+      let! (cond, postCond) =
+        match postInit with
+        | t::tkns when t.Type = SEMICOLON -> 
+          // for(var i = 0; ;
+          Ok (None, tkns)
+        | tkns ->
+          // for(var i = 0; i < 10;
+          result {
+            let! cond, tkns' = expression tkns
+            match tkns' with
+            | t::postCond when t.Type = SEMICOLON -> return (Some cond, postCond)
+            | t::_ -> return! Error (FloxError.FromToken t "Semicolon required after condition in for statement", tkns')
+            | [] -> return! Error({Line=0;Msg="Unexpected end of input"}, [])
+          }
 
-    return! Error ({Line=0;Msg="nyi"}, [])
+      let! (increment, postInc) =
+        match postCond with
+        | t::_ when t.Type = RIGHT_PAREN -> 
+          // for(var i = 0; i < 10; )
+          Ok (None, postCond)
+        | tkns -> 
+          // for(var i = 0; i < 10; i = i + 1)
+          result {
+            let! inc, tkns' = expression tkns
+            match tkns' with
+(*             | sc::t::tkns'' when sc.Type = SEMICOLON && t.Type = RIGHT_PAREN -> 
+              return (Some inc, tkns'') *)
+            | t::tkns'' when t.Type = RIGHT_PAREN -> 
+              return (Some inc, tkns'')
+            | t::_ -> return! Error (FloxError.FromToken t (sprintf "unexpected token '%s' in for statement" t.Lexeme), tkns')
+            | [] -> return! Error ({Line=0;Msg="unexpected end of input"}, [])
+          }
+
+      let! body, postBody = statement postInc
+      
+      /// Desugaring the for loop into a while statement. This for loop
+      /// 
+      /// for (var i = 0; i < 10; i = i + 1) print i;
+      /// 
+      /// desurgars to this while loop
+      /// 
+      /// {
+      ///   var i = 0;
+      ///   while (i < 10) {
+      ///     print i;
+      ///     i = i + 1;
+      ///   }
+      /// }
+      /// 
+      /// If there's an increment expression, we build a new body by creating a block that is the original body
+      /// and the increment expression
+      let body' = 
+        match increment with
+        | Some i -> Block [body; ExprStmt i]
+        | None -> body
+      
+      let cond' =
+        match cond with
+        | Some c -> c
+        | None -> Literal (Bool true)
+      
+      let whileStmt = WhileStmt (cond', body')
+      let stmt =
+        match initializer with
+        | Some i -> Block [i; whileStmt]
+        | None -> whileStmt
+      
+      return stmt, postBody
+    
+    // case when there's no open paren (this is a long function ... refactor?)
+    | t::rest -> return! Error (FloxError.FromToken t "Open paren expected after for keyword", t::rest)
+    | [] -> return! Error({Line=0;Msg="unexpected end of input"}, [])
   }
 
 and private declaration tokens =
@@ -261,7 +352,7 @@ and private statement tokens =
     | tkns                              -> return! exprStatement  tkns 
   }
 
-and private varDeclaration tokens =
+and private varDeclaration tokens : Result<(Stmt * Token list), (FloxError * Token list)> =
   match tokens with
   | t::rest -> 
     match t.Type with 

@@ -28,7 +28,7 @@ let runPrompt () =
         printfn "\x1b[36m"
         match interpret env stmts with
         | Ok istate' -> 
-          printf "\x1b[0m" 
+          printf "\x1b[0m\n" 
           loop istate'
         | Error (e, istate') -> 
           printf "\x1b[31m%s\x1b[0m\n" e.Msg

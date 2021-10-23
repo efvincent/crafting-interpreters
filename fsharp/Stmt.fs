@@ -8,4 +8,5 @@ type Stmt =
 | ExprStmt of Expr
 | PrintStmt of Expr
 | IfStmt of Expr * Stmt * Stmt option
+| WhileStmt of Expr * Stmt
 | VarStmt of Token * Expr option

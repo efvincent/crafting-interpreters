@@ -162,7 +162,21 @@ and ifStmt env scopeId cond ifBlock elseBlockOpt =
           | Some elseBlock -> evalStmt postCondEnv scopeId elseBlock            
           | None -> Ok postCondEnv
       return { postIfEnv with StatementCount = postIfEnv.StatementCount + 1 }    
-  }   
+  } 
+
+and whileStmt env scopeId cond body : Result<Env, FloxError> =
+  let rec loop env = 
+    result {
+      let! env', value = eval env scopeId cond
+      match toBool () value with
+      | Ok v when v -> 
+        let! postBody = evalStmt env' scopeId body
+        return! loop postBody
+      | Ok _ ->
+        return env'
+      | Error _ -> return! Error {Line=0;Msg="while condition does not evaluate to boolean result"}
+    } 
+  loop env  
 
 and evalStmt (env:Env) (scopeId: int option) (stmt:Stmt) : Result<Env, FloxError> =
   result {
@@ -184,8 +198,11 @@ and evalStmt (env:Env) (scopeId: int option) (stmt:Stmt) : Result<Env, FloxError
       let env'' = env'.BindVar t.Lexeme v scopeId 
       return { env'' with StatementCount = env'.StatementCount + 1 }
     | VarStmt (t, None) ->
-      return { (env.BindVar t.Lexeme Nil scopeId) with 
+      return { (env.BindVar t.Lexeme Nil scopeId) with       
                 StatementCount = env.StatementCount + 1 } 
+    | WhileStmt (cond, body) ->
+      let! env' = whileStmt env scopeId cond body
+      return { env' with StatementCount = env'.StatementCount + 1 }
   }
 
 let rec interpret istate = function

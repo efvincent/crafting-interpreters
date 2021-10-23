@@ -22,7 +22,10 @@ varDecl     -> "var" IDENTIFIER ( "=" expression )? ";" ;
 statement   -> exprStmt 
               | ifStmt
               | printStmt 
+              | whileStmt
               | block ;
+
+whileStmt   -> "while" "(" expression ")" statement ;
 
 ifStmt      -> "if" "(" expression ")" statement ("else" statement )? ;
 
@@ -188,8 +191,8 @@ let private exprStatement tokens =
 let rec private ifStatement tokens = 
   result {
     match tokens with
-    | t::rest' when t.Type = LEFT_PAREN ->
-      let! cond, postCond = expression rest'
+    | t::rest when t.Type = LEFT_PAREN ->
+      let! cond, postCond = expression rest
       match postCond with
       | t::postRParen when t.Type = RIGHT_PAREN ->
         let! thenStmt, postThen = statement postRParen
@@ -212,6 +215,21 @@ let rec private ifStatement tokens =
     | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
   }
 
+and private whileStatement tokens : Result<(Stmt * Token list), (FloxError * Token list)> =
+  result {
+    match tokens with
+    | t::rest when t.Type = LEFT_PAREN -> 
+      let! cond, postCond = expression rest
+      match postCond with
+      | t::postRParen when t.Type = RIGHT_PAREN ->
+        let! stmt, postStmt = statement postRParen
+        return (WhileStmt(cond, stmt), postStmt)
+      | t::tkns -> return! Error (FloxError.FromToken t "expected closing paren in while condition", tkns)
+      | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+    | t::tkns -> return! Error (FloxError.FromToken t "expected left paren in while condition", tkns)
+    | _ -> return! Error ({Line=0;Msg="Unexpected end of input"}, [])
+  }
+
 and private declaration tokens =
   result {
     match tokens with
@@ -227,6 +245,7 @@ and private statement tokens =
     | t::rest when t.Type = IF          -> return! ifStatement rest
     | t::rest when t.Type = LEFT_BRACE  -> return! blockStatement rest
     | t::rest when t.Type = PRINT       -> return! printStatement rest
+    | t::rest when t.Type = WHILE       -> return! whileStatement rest
     | tkns                              -> return! exprStatement tkns 
   }
 
